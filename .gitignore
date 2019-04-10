@@ -1,0 +1,6 @@
+.DS_Store
+
+data/
+network/channels
+network/cryptos
+vendor/
