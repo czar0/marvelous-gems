@@ -1,4 +1,4 @@
-# Fabric _V1 from CLI_  
+# Hyperledger Fabric: Multi-channel demo 
 
 Hyperledger Fabric V1 introduces an interesting feature aimed at guaranteeing confidentiality of sensitive data between peers of the same network. The result is obtained not using encryption or obfuscation mechanisms but rather segregating data and keep that information available only to targeted peers in the network. One of the main advantages of this approach is that it does not allow unauthorized peers to store sensitive data in their local ledger. The reason behind this choice is the following: even if encrypted, sensitive data would be still exposed to untrusted (or even worse, malicious) peers which could eventually discover the secret key used in the process or use brute force to finally obtain readable data.
 

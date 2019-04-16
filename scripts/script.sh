@@ -108,13 +108,9 @@ fetchChannel() {
     echo "===================== Going to fetch the most recent config block for channel \"$CHANNEL_NAME\"  ===================== "
 
     if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
-        set -x
         peer channel fetch config $CHANNEL_NAME.block -o orderer.example.com:7050 -c $CHANNEL_NAME --cafile $ORDERER_CA >&fabric-v1.log
-        set +x
     else
-        set -x
         peer channel fetch config $CHANNEL_NAME.block -o orderer.example.com:7050 -c $CHANNEL_NAME --tls --cafile $ORDERER_CA >&fabric-v1.log
-        set +x
     fi
 
     res=$?
@@ -131,15 +127,9 @@ updateAnchorPeers() {
     setGlobals $PEER
 
     if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
-        set -x
         peer channel update -o orderer.example.com:7050 -c $CHANNEL_NAME -f $CHANNELS_PATH/$CHANNEL_NAME/${CORE_PEER_LOCALMSPID}_anchors_tx.pb >&fabric-v1.log
-        res=$?
-        set +x
     else
-        set -x
         peer channel update -o orderer.example.com:7050 -c $CHANNEL_NAME -f $CHANNELS_PATH/$CHANNEL_NAME/${CORE_PEER_LOCALMSPID}_anchors_tx.pb --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA >&fabric-v1.log
-        res=$?
-        set +x
     fi
 
     res=$?
@@ -157,10 +147,8 @@ joinWithRetry () {
 
     setGlobals $PEER
 
-    set -x
     peer channel join -b $CHANNEL_NAME.block >&fabric-v1.log
 	res=$?
-    set +x
 	cat fabric-v1.log
 
 	if [ $res -ne 0 -a $COUNTER -lt $MAX_RETRY ]; then

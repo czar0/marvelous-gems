@@ -18,7 +18,7 @@ type Asset struct {
 	AssetAvailableQuantity int64    `json:"assetAvailableQuantity"`
 }
 
-var AssetIndexName = "_asset"
+var AssetIndexName = "assets"
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Sharing chaincode initialized")
@@ -212,13 +212,6 @@ func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string)
 	return shim.Success(Avalbytes)
 }
 
-func main() {
-	err := shim.Start(new(SimpleChaincode))
-	if err != nil {
-		fmt.Printf("Error starting Simple chaincode: %s", err)
-	}
-}
-
 func GetIndex(stub shim.ChaincodeStubInterface, indexName string) ([]string, error) {
 	indexAsBytes, err := stub.GetState(indexName)
 	if err != nil {
@@ -232,4 +225,11 @@ func GetIndex(stub shim.ChaincodeStubInterface, indexName string) ([]string, err
 	}
 
 	return index, nil
+}
+
+func main() {
+	err := shim.Start(new(SimpleChaincode))
+	if err != nil {
+		fmt.Printf("Error starting Simple chaincode: %s", err)
+	}
 }
