@@ -1,24 +1,29 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
-	"encoding/json"
-	"strconv"
-	"errors"
 )
 
 type SimpleChaincode struct {
 }
 
-type Asset struct {
-	AssetID                string   `json:"assetID"`
-	AssetTitle             string   `json:"assetTitle"`
-	AssetAvailableQuantity int64    `json:"assetAvailableQuantity"`
+type Gem struct {
+	ID          string    `json:"id"`
+	Colour      string    `json:"colour"`
+	Description string    `json:"description"`
+	Price       float64   `json:"price"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
 
-var AssetIndexName = "assets"
+var GemIndexName = "gems"
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Sharing chaincode initialized")
@@ -30,7 +35,7 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 		return shim.Error("Error marshalling")
 	}
 
-	err = stub.PutState(AssetIndexName, empty);
+	err = stub.PutState(GemIndexName, empty)
 	if err != nil {
 		return shim.Error("Error deleting index")
 	}
@@ -41,16 +46,15 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Sharing chaincode invoke")
 	function, args := stub.GetFunctionAndParameters()
-	fmt.Println("Called function " + function)
-	fmt.Printf("With args: %v \n", args)
-	fmt.Println("TransactionID: " + stub.GetTxID())
+	fmt.Println("Function " + function)
+	fmt.Printf("Args: %v \n", args)
 
-	if function == "createAsset" {
-		return t.createAsset(stub, args)
-	} else if function == "updateAsset" {
-		return t.updateAsset(stub, args)
-	} else if function == "getAllAssets" {
-		return t.getAllAssets(stub, args)
+	if function == "createGem" {
+		return t.createGem(stub, args)
+	} else if function == "updateGemPrice" {
+		return t.updateGemPrice(stub, args)
+	} else if function == "getAllGems" {
+		return t.getAllGems(stub, args)
 	} else if function == "query" {
 		return t.query(stub, args)
 	}
@@ -58,158 +62,141 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Error("Invalid invoke function name")
 }
 
-func (t *SimpleChaincode) createAsset(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside create asset function")
-	fmt.Println(args)
-
-	var asset Asset
-	err := json.Unmarshal([]byte(args[0]), &asset)
+func (t *SimpleChaincode) createGem(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var gem Gem
+	err := json.Unmarshal([]byte(args[0]), &gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
-	fmt.Println(asset)
+	fmt.Println(gem)
 
-	assetAsBytes, err := json.Marshal(asset)
-	if err != nil {
-		fmt.Println(err)
-		return shim.Error(err.Error())
-	}
+	timestamp, err := stub.GetTxTimestamp()
+	fmt.Println(timestamp)
+	gem.CreatedAt = time.Unix(timestamp.GetSeconds(), 0)
 
-	err = stub.PutState(asset.AssetID, assetAsBytes)
+	gemAsBytes, err := json.Marshal(gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	index, err := GetIndex(stub, AssetIndexName)
+	err = stub.PutState(gem.ID, gemAsBytes)
+	if err != nil {
+		fmt.Println(err)
+		return shim.Error(err.Error())
+	}
+
+	index, err := GetIndex(stub, GemIndexName)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	index = append(index, asset.AssetID)
+	index = append(index, gem.ID)
 
 	jsonAsBytes, err := json.Marshal(index)
 	if err != nil {
-		return shim.Error("Error marshalling index '" + AssetIndexName + "': " + err.Error())
+		return shim.Error("Error marshalling index '" + GemIndexName + "': " + err.Error())
 	}
 
-	err = stub.PutState(AssetIndexName, jsonAsBytes)
+	err = stub.PutState(GemIndexName, jsonAsBytes)
 	if err != nil {
-		return shim.Error("Error storing new " + AssetIndexName + " into ledger")
+		return shim.Error("Error storing new " + GemIndexName + " into ledger")
 	}
 
-	fmt.Println("Succesfully stored the asset!")
+	fmt.Println("GEM CREATED")
 
 	return shim.Success(nil)
 }
 
-func (t *SimpleChaincode) updateAsset(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside update asset function")
-	fmt.Println(args)
-
-	assetAsBytes, err := stub.GetState(args[0])
+func (t *SimpleChaincode) updateGemPrice(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	gemAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	var asset Asset
-	err = json.Unmarshal(assetAsBytes, &asset)
+	var gem Gem
+	err = json.Unmarshal(gemAsBytes, &gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	transfer, err := strconv.ParseInt(args[1], 10, 64)
+	gem.Price, err = strconv.ParseFloat(args[1], 64)
+	timestamp, err := stub.GetTxTimestamp()
+	gem.UpdatedAt = time.Unix(timestamp.GetSeconds(), 0)
+
+	gemAsBytes, err = json.Marshal(gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	if asset.AssetAvailableQuantity < transfer {
-		fmt.Printf("It is not possible to have negative balance: %d availableQuantity | %d transferRequest", asset.AssetAvailableQuantity, transfer)
-		return shim.Error("It is not possible to have negative balance")
-	}
-
-	asset.AssetAvailableQuantity -= transfer
-
-	assetAsBytes, err = json.Marshal(asset)
+	err = stub.PutState(gem.ID, gemAsBytes)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	err = stub.PutState(asset.AssetID, assetAsBytes)
-	if err != nil {
-		fmt.Println(err)
-		return shim.Error(err.Error())
-	}
-
-	fmt.Println("Succesfully stored the updated asset!")
+	fmt.Println("GEM PRICE UPDATED")
 
 	return shim.Success(nil)
 }
 
-func (t *SimpleChaincode) getAllAssets(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	assetIndex, err := GetIndex(stub, AssetIndexName)
+func (t *SimpleChaincode) getAllGems(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	gemIndex, err := GetIndex(stub, GemIndexName)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
-	assets := []Asset{}
+	gems := []Gem{}
 
-	for _, assetID := range assetIndex {
-		assetAsBytes, err := stub.GetState(assetID)
+	for _, gemID := range gemIndex {
+		gemAsBytes, err := stub.GetState(gemID)
 		if err != nil {
 			return shim.Error(err.Error())
 		}
 
-		asset := Asset{}
+		gem := Gem{}
 
-		err = json.Unmarshal(assetAsBytes, &asset)
+		err = json.Unmarshal(gemAsBytes, &gem)
 		if err != nil {
 			return shim.Error(err.Error())
 		}
 
-		assets = append(assets, asset)
+		gems = append(gems, gem)
 	}
 
-	assetAsBytes, err := json.Marshal(assets)
+	gemAsBytes, err := json.Marshal(gems)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	return shim.Success(assetAsBytes)
+	return shim.Success(gemAsBytes)
 }
 
-// query callback representing the query of a chaincode
 func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	var A string // Entities
+	var ID string
 	var err error
 
 	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting name of the person to query")
+		return shim.Error("Query function requires one argument: ID")
 	}
 
-	A = args[0]
+	ID = args[0]
 
-	// Get the state from the ledger
-	Avalbytes, err := stub.GetState(A)
+	payload, err := stub.GetState(ID)
 	if err != nil {
-		jsonResp := "{\"Error\":\"Failed to get state for " + A + "\"}"
-		return shim.Error(jsonResp)
+		return shim.Error("Failed to get state for: " + ID)
 	}
 
-	if Avalbytes == nil {
-		jsonResp := "{\"Error\":\"Nil amount for " + A + "\"}"
-		return shim.Error(jsonResp)
+	if payload == nil {
+		return shim.Error("No results for: " + ID)
 	}
 
-	jsonResp := "{\"Name\":\"" + A + "\",\"Amount\":\"" + string(Avalbytes) + "\"}"
-	fmt.Printf("Query Response:%s\n", jsonResp)
-	return shim.Success(Avalbytes)
+	return shim.Success(payload)
 }
 
 func GetIndex(stub shim.ChaincodeStubInterface, indexName string) ([]string, error) {

@@ -5,44 +5,46 @@ COUNTER=0
 MAX_RETRY=5
 ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
 CHANNELS_PATH="$(pwd)/channels"
-HELP="List of available commands:
 
-    init                                                        Run the first initialisation of the network
-    demo                                                        Run the interactive demo described in the README
-    listFunctions                                               Show a list of the available functions divided by smart-contract
-    setPeer [PEER_NR]                                           Set credentials as peer [PEER_NR]
-    createChannel [CHANNEL]                                     Create a new channel with [CHANNEL]
-    joinChannel [PEER_NR] [CHANNEL]                             Add peer [PEER_NR] to [CHANNEL]
-    installChaincode [PEER_NR] [CHAINCODE]                      Install [CHAINCODE] on peer [PEER_NR]
-    instantiateChaincode [PEER_NR] [CHANNEL] [CHAINCODE]        Instantiate [CHAINCODE] on peer [PEER_NR] in [CHANNEL] channel
-    query [PEER_NR] [CHANNEL] [CHAINCODE] [KEY]                 Query by [KEY] on [CHANNEL] and [CHAINCODE] with [PEER_NR]
-    invoke [PEER_NR] [CHANNEL] [CHAINCODE] [FUNCTION] [ARGS]    Invoke [FUNCTION] with [ARGS] on [CHANNEL] and [CHAINCODE] with [PEER_NR]
-    
-"
+help() {
+    local help="
+        List of available commands:
+
+        init                                                        : Run the first initialisation of the network
+        demo                                                        : Run the interactive demo described in the README
+        listFunctions                                               : Show a list of the available functions divided by smart-contract
+        setPeer [PEER_NR]                                           : Set credentials as peer [PEER_NR]
+        createChannel [CHANNEL]                                     : Create a new channel with [CHANNEL]
+        joinChannel [PEER_NR] [CHANNEL]                             : Add peer [PEER_NR] to [CHANNEL]
+        installChaincode [PEER_NR] [CHAINCODE]                      : Install [CHAINCODE] on peer [PEER_NR]
+        instantiateChaincode [PEER_NR] [CHANNEL] [CHAINCODE]        : Instantiate [CHAINCODE] on peer [PEER_NR] in [CHANNEL] channel
+        query [PEER_NR] [CHANNEL] [CHAINCODE] [KEY]                 : Query by [KEY] on [CHANNEL] and [CHAINCODE] with [PEER_NR]
+        invoke [PEER_NR] [CHANNEL] [CHAINCODE] [FUNCTION] [ARGS]    : Invoke [FUNCTION] with [ARGS] on [CHANNEL] and [CHAINCODE] with [PEER_NR]  
+    "
+    echo "$help"
+}
 
 listFunctions () {
-    FUNCTIONS="List of available functions per chaincode:
-  
-    chaincode: private-cc
+    local functions="List of available functions per chaincode:
+    =====================================
+    CHAINCODE: private-cc
 
-    issueAsset [JSON]                                                           Create a new asset [JSON] and set the status to ISSUED
-    approveAsset [WALLET_ID]                                                    Set the status of the asset as APPROVED
-    updateBalance [WALLET_ID_SENDER] [WALLET_ID_RECIPIENT] [TRANSFER_QUANTITY]  Move [TRANSFER_QUANTITY] from [WALLET_ID_SENDER] to [WALLET_ID_RECIPIENT] and set the status to TRADED
+    issueGem [JSON]                      : Create a new gem [JSON] and set the status to ISSUED
+    certifyGem [GEM_ID]                  : Set the status of the gem as CERTIFIED
+    updateOwnership [GEM_ID] [OWNER_ID]  : Transfer ownership to new [OWNER_ID] and move the previous owner in the list
+    =====================================
+    CHAINCODE: trading-cc
 
+    createTrade [JSON]                   : Create a transaction [JSON] with the details of the transfer
+    ======================================
+    CHAINCODE: sharing-cc
 
-    chaincode: trading-cc
-
-    transfer [JSON]                                                             Create a transaction [JSON] with the details of the transfer
-
-
-    chaincode: sharing-cc
-
-    createAsset [JSON]                                                          Add a new asset [JSON] in the showcase
-    updateAsset [ASSET_ID] [ASSET_QUANTITY]                                     Update the quantity availability [ASSET_QUANTITY] of an asset [ASSET_ID]
-    getAllAssets available                                                      Return all the available assets for trading
+    createGem [JSON]                     : Add a new gem [JSON] in the showcase
+    updateGemPrice [GEM_ID] [PRICE]      : Update the [PRICE] of a gem [GEM_ID]
+    getAllGems available                 : Return all the available gems in the marketplace
     "
     
-    echo "$FUNCTIONS"
+    echo "$functions"
 }
 
 gracefulExit () {
@@ -269,57 +271,59 @@ chaincodeInvoke () {
 }
 
 demo() {
-    echo "ISSUING AN ASSET"
-    printf "\nInvoke to issue an asset on the PRIVATE CHANNEL (peer1)\n\n"
+    echo "ISSUING A GEM"
+    printf "\nInvoke to issue a gem on the PRIVATE CHANNEL (peer1)\n\n"
     read -n 1 -s -p "Press any key to start the interactive demo"
-    chaincodeInvoke 1 private private-cc issueAsset '{"userID":"john","accountID":"A846HD","assetID":"IT123456890","assetTitle":"BigCompany-asset1","assetIssuedQuantity":100,"assetMyQuantity":100,"shareholders":["john"],"issuer":"john","status":"ISSUED"}'
+    chaincodeInvoke 1 private private-cc issueGem '{"id":"gem1","owner_id":"john","colour":"red","description":"shining!"}'
 
-    printf "\n\nInvoke to approve an asset on the PRIVATE CHANNEL (peer0)\n\n"
+    printf "\n\nInvoke to certify a gem on the PRIVATE CHANNEL (peer0)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 0 private private-cc approveAsset john
+    chaincodeInvoke 0 private private-cc certifyGem gem1
 
-    printf "\n\nQuery to retrieve information about the asset on the PRIVATE CHANNEL (peer1)\n\n"
+    printf "\n\nQuery to retrieve information about the gem on the PRIVATE CHANNEL (peer1)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeQuery 1 private private-cc john
+    chaincodeQuery 1 private private-cc gem1
 
     printf "\n\nOther peers not in the PRIVATE CHANNEL cannot see the information stored if they try to query it (peer2)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeQuery 2 private private-cc john
+    chaincodeQuery 2 private private-cc gem1
 
-    printf "\n\nInvoke to create an asset on the SHARING CHANNEL (peer0)\n\n"
+    printf "\n\nInvoke to create a gem on the SHARING CHANNEL (peer0)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 0 sharing sharing-cc createAsset '{"assetID":"IT123456890","assetTitle":"BigCompany-asset1","assetAvailableQuantity":100}'
+    chaincodeInvoke 0 sharing sharing-cc createGem '{"id":"gem1","colour":"red","description":"shining!","price":1500.34}'
 
-    echo "TRADING AN ASSET"
-    printf "\nInvoke to transfer from John (peer1) to Jane (peer2) on the TRADING CHANNEL (peer1)\n\n"
+    echo "TRADING A GEM"
+    printf "\nInvoke to transfer the ownership of the gem from John (peer1), the seller, to Jane (peer2), the buyer, on the TRADING CHANNEL (peer1)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 1 trading trading-cc transfer '{"transactionID":"transaction1","sellerAccount":"john","receiverAccount":"jane","amount":20,"assetID":"IT123456890","assetTitle":"BigCompany-asset1","timestamp":1491387927548}'
+    chaincodeInvoke 1 trading trading-cc createTrade '{"id":"tx1","seller":"john","buyer":"jane","price":1500.34}'
 
-    printf "\n\nQuery to retrieve the transaction on the TRADING CHANNEL (peer2)\n\n"
+    printf "\n\nQuery to retrieve the trade information on the TRADING CHANNEL (peer2)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeQuery 2 trading trading-cc transaction1
+    chaincodeQuery 2 trading trading-cc tx1
 
     printf "\n\nOther peers not in the TRADING CHANNEL cannot see the information stored if they try to query it (peer3)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeQuery 3 trading trading-cc transaction1
+    chaincodeQuery 3 trading trading-cc tx1
 
-    printf "\n\nInvoke to update the balance of an asset on the PRIVATE CHANNEL (peer0)\n\n"
+    printf "\n\nInvoke to update the ownership of a gem on the PRIVATE CHANNEL (peer0)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 0 private private-cc updateBalance john jane 20
+    chaincodeInvoke 0 private private-cc updateOwnership gem1 jane
 
-    printf "\n\nInvoke to update available quantity of asset on the SHARING CHANNEL (peer0)\n\n"
+    printf "\n\nInvoke to update the price of gem on the SHARING CHANNEL (peer0)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 0 sharing sharing-cc updateAsset IT123456890 20
+    chaincodeInvoke 0 sharing sharing-cc updateGemPrice gem1 2000.40
 
-    printf "\n\nQuery to retrieve all the assets on the SHARING CHANNEL (peer3)\n\n"
+    printf "\n\nQuery to retrieve all the gems on the SHARING CHANNEL (peer3)\n\n"
     read -n 1 -s -p "Press any key to continue"
-    chaincodeInvoke 3 sharing sharing-cc getAllAssets available
+    chaincodeInvoke 3 sharing sharing-cc getAllGems available
 
     printf "\n\nThat's it! I hope you enjoyed this journey through the magical universe of Fabric channels :)\n\n"
 }
 
-case $1 in
-"init")
+readonly func="$1"
+shift
+
+if [ "$func" == "init" ]; then
      # Create channels, first argument is the channel name
     createChannel private
     createChannel trading
@@ -362,70 +366,67 @@ case $1 in
     instantiateChaincode 0 sharing sharing-cc
 
     echo "===================== Network setup is successful ===================== "
-    ;;
-"demo")
+elif [ "$func" == "demo" ]; then
     demo
-    ;;
-"setPeer")
-    if [ -z $2 ]; then
+elif [ "$func" == "setPeer" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    setGlobals $2
-    ;;
-"listFunctions")
+
+    setGlobals $@
+elif [ "$func" == "listFunctions" ]; then
     listFunctions
-    ;;
-"createChannel")
-    if [ -z $2 ]; then
+elif [ "$func" == "createChannel" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    createChannel $2
-    ;;
-"joinChannel")
-    if [ -z $2 ] || [ -z $3 ]; then
+
+    createChannel $@
+elif [ "$func" == "joinChannel" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    joinChannel $2 $3
-    ;;
-"installChaincode")
-    if [ -z $2 ] || [ -z $3 ]; then
+
+    joinChannel $@
+elif [ "$func" == "installChaincode" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    installChaincode $2 $3
-    ;;
-"instantiateChaincode")
-    if [ -z $2 ] || [ -z $3 ] || [ -z $4 ]; then
+
+    installChaincode $@
+elif [ "$func" == "instantiateChaincode" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    instantiateChaincode $2 $3 $4
-    ;;
-"query")
-    if [ -z $2 ] || [ -z $3 ] || [ -z $4 ] || [ -z $5 ]; then
+
+    instantiateChaincode $@
+elif [ "$func" == "query" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    chaincodeQuery $2 $3 $4 $5
-    ;;
-"invoke")
-    if [ -z $2 ] || [ -z $3 ] || [ -z $4 ] || [ -z $5 ]; then
+
+    chaincodeQuery $@
+elif [ "$func" == "invoke" ]; then
+    if [ -z $@ ]; then
         echo "Parameter missing"
         echo "$HELP"
         exit 1
     fi
-    chaincodeInvoke $2 $3 $4 $5 ${@:5}
-    ;;
-*)
-    echo "$HELP"
-    ;;
-esac
+    
+    chaincodeInvoke $@
+else
+    help
+    exit 1
+fi

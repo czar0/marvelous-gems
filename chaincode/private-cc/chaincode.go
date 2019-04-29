@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
@@ -11,23 +11,20 @@ import (
 
 type SimpleChaincode struct {
 }
-
-type Wallet struct {
-	UserID              string   `json:"userID"`
-	AccountID           string   `json:"accountID"`
-	AssetID             string   `json:"assetID"`
-	AssetTitle          string   `json:"assetTitle"`
-	AssetIssuedQuantity int64    `json:"assetIssuedQuantity"`
-	AssetMyQuantity     int64    `json:"assetMyQuantity"`
-	Shareholders        []string `json:"shareholders"`
-	Issuer              string   `json:"issuer"`
-	Status              string   `json:"status"`
+type Gem struct {
+	ID             string    `json:"id"`
+	OwnerID        string    `json:"owner_id"`
+	PreviousOwners []string  `json:"previous_owners,omitempty"`
+	Colour         string    `json:"colour"`
+	Description    string    `json:"description,omitempty"`
+	Status         string    `json:"status,omitempty"`
+	CreatedAt      time.Time `json:"created_at,omitempty"`
+	UpdatedAt      time.Time `json:"updated_at,omitempty"`
 }
 
 const (
-	ASSET_ISSUED   = "ISSUED"
-	ASSET_APPROVED = "APPROVED"
-	ASSET_TRADED   = "TRADED"
+	GEM_ISSUED    = "ISSUED"
+	GEM_CERTIFIED = "CERTIFIED"
 )
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
@@ -38,16 +35,15 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Private chaincode invoke")
 	function, args := stub.GetFunctionAndParameters()
-	fmt.Println("Called function " + function)
-	fmt.Printf("With args: %v \n", args)
-	fmt.Println("TransactionID: " + stub.GetTxID())
+	fmt.Println("Function: " + function)
+	fmt.Printf("Args: %v \n", args)
 
-	if function == "issueAsset" {
-		return t.issueAsset(stub, args)
-	} else if function == "approveAsset" {
-		return t.approveAsset(stub, args)
-	} else if function == "updateBalance" {
-		return t.updateBalance(stub, args)
+	if function == "issueGem" {
+		return t.issueGem(stub, args)
+	} else if function == "certifyGem" {
+		return t.certifyGem(stub, args)
+	} else if function == "updateOwnership" {
+		return t.updateOwnership(stub, args)
 	} else if function == "query" {
 		return t.query(stub, args)
 	}
@@ -55,150 +51,127 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Error("Invalid invoke function name")
 }
 
-func (t *SimpleChaincode) issueAsset(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside issue asset function")
-	fmt.Println(args)
-
-	var wallet Wallet
-	err := json.Unmarshal([]byte(args[0]), &wallet)
+func (t *SimpleChaincode) issueGem(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var gem Gem
+	err := json.Unmarshal([]byte(args[0]), &gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
-	fmt.Println(wallet)
+	fmt.Println(gem)
 
-	wallet.Status = ASSET_ISSUED
+	gem.Status = GEM_ISSUED
+	timestamp, err := stub.GetTxTimestamp()
+	gem.CreatedAt = time.Unix(timestamp.GetSeconds(), 0)
 
-	walletAsBytes, err := json.Marshal(wallet)
-	if err != nil {
-		fmt.Println(err)
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(wallet.UserID, walletAsBytes)
+	gemAsBytes, err := json.Marshal(gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	fmt.Println("Succesfully stored the asset wallet!")
+	err = stub.PutState(gem.ID, gemAsBytes)
+	if err != nil {
+		fmt.Println(err)
+		return shim.Error(err.Error())
+	}
+
+	fmt.Println("GEM ISSUED")
 
 	return shim.Success(nil)
 }
 
-func (t *SimpleChaincode) approveAsset(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside approve asset function")
-	fmt.Println(args)
-
-	walletAsBytes, err := stub.GetState(args[0])
+func (t *SimpleChaincode) certifyGem(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	gemAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	var wallet Wallet
-	err = json.Unmarshal(walletAsBytes, &wallet)
+	var gem Gem
+	err = json.Unmarshal(gemAsBytes, &gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	wallet.Status = ASSET_APPROVED
+	gem.Status = GEM_CERTIFIED
+	timestamp, err := stub.GetTxTimestamp()
+	gem.UpdatedAt = time.Unix(timestamp.GetSeconds(), 0)
 
-	walletAsBytes, err = json.Marshal(wallet)
+	gemAsBytes, err = json.Marshal(gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	err = stub.PutState(wallet.UserID, walletAsBytes)
+	err = stub.PutState(gem.ID, gemAsBytes)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	fmt.Println("Succesfully approved the asset!")
+	fmt.Println("GEM CERTIFIED")
 
 	return shim.Success(nil)
 }
 
-func (t *SimpleChaincode) updateBalance(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside update balance function")
-	fmt.Println(args)
-
-	walletAsBytes, err := stub.GetState(args[0])
+func (t *SimpleChaincode) updateOwnership(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	gemAsBytes, err := stub.GetState(args[0])
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	var wallet Wallet
-	err = json.Unmarshal(walletAsBytes, &wallet)
+	var gem Gem
+	err = json.Unmarshal(gemAsBytes, &gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	wallet.Shareholders = append(wallet.Shareholders, args[1])
+	gem.PreviousOwners = append(gem.PreviousOwners, gem.OwnerID)
+	gem.OwnerID = args[1]
+	timestamp, err := stub.GetTxTimestamp()
+	gem.UpdatedAt = time.Unix(timestamp.GetSeconds(), 0)
 
-	transfer, err := strconv.ParseInt(args[2], 10, 64)
+	gemAsBytes, err = json.Marshal(gem)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	if wallet.AssetMyQuantity < transfer {
-		fmt.Printf("Not enough balance to complete the transfer: %d availableQuantity | %d transferRequest", wallet.AssetMyQuantity, transfer)
-		return shim.Error("Not enough balance to complete the transfer")
-	}
-
-	wallet.AssetMyQuantity -= transfer
-
-	wallet.Status = ASSET_TRADED
-
-	walletAsBytes, err = json.Marshal(wallet)
+	err = stub.PutState(gem.ID, gemAsBytes)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	err = stub.PutState(wallet.UserID, walletAsBytes)
-	if err != nil {
-		fmt.Println(err)
-		return shim.Error(err.Error())
-	}
-
-	fmt.Println("Succesfully updated the asset balance!")
+	fmt.Println("OWNERSHIP UPDATED")
 
 	return shim.Success(nil)
 }
 
-// query callback representing the query of a chaincode
 func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	var A string // Entities
+	var ID string
 	var err error
 
 	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting name of the person to query")
+		return shim.Error("Query function requires one argument: ID")
 	}
 
-	A = args[0]
+	ID = args[0]
 
-	// Get the state from the ledger
-	Avalbytes, err := stub.GetState(A)
+	payload, err := stub.GetState(ID)
 	if err != nil {
-		jsonResp := "{\"Error\":\"Failed to get state for " + A + "\"}"
-		return shim.Error(jsonResp)
+		return shim.Error("Failed to get state for: " + ID)
 	}
 
-	if Avalbytes == nil {
-		jsonResp := "{\"Error\":\"Nil amount for " + A + "\"}"
-		return shim.Error(jsonResp)
+	if payload == nil {
+		return shim.Error("No results for: " + ID)
 	}
 
-	jsonResp := "{\"Name\":\"" + A + "\",\"Amount\":\"" + string(Avalbytes) + "\"}"
-	fmt.Printf("Query Response:%s\n", jsonResp)
-	return shim.Success(Avalbytes)
+	return shim.Success(payload)
 }
 
 func main() {
