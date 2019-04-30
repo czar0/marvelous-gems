@@ -1,23 +1,24 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
-	"encoding/json"
 )
 
 type SimpleChaincode struct {
 }
 
-type Transaction struct {
-	TransactionID   string `json:"transactionID"`
-	SellerAccount   string `json:"sellerAccount"`
-	ReceiverAccount string `json:"receiverAccount"`
-	Amount          int64  `json:"amount"`
-	AssetID         string `json:"assetID"`
-	AssetTitle      string `json:"assetTitle"`
-	Timestamp       int64  `json:"timestamp"`
+type Trade struct {
+	ID        string    `json:"id"`
+	GemID     string    `json:"gem_id"`
+	Seller    string    `json:"suller"`
+	Buyer     string    `json:"buyer"`
+	Price     float64   `json:"price"`
+	Timestamp time.Time `json:"timestamp,omitempty"`
 }
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
@@ -28,12 +29,11 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	fmt.Println("Trading chaincode invoke")
 	function, args := stub.GetFunctionAndParameters()
-	fmt.Println("Called function " + function)
-	fmt.Printf("With args: %v \n", args)
-	fmt.Println("TransactionID: " + stub.GetTxID())
+	fmt.Println("Function " + function)
+	fmt.Printf("Args: %v \n", args)
 
-	if function == "transfer" {
-		return t.transfer(stub, args)
+	if function == "createTrade" {
+		return t.createTrade(stub, args)
 	} else if function == "query" {
 		return t.query(stub, args)
 	}
@@ -41,61 +41,55 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Error("Invalid invoke function name")
 }
 
-func (t *SimpleChaincode) transfer(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	fmt.Println("inside create transaction function")
-	fmt.Println(args)
-
-	var transaction Transaction
-	err := json.Unmarshal([]byte(args[0]), &transaction)
+func (t *SimpleChaincode) createTrade(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var trade Trade
+	err := json.Unmarshal([]byte(args[0]), &trade)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
-	fmt.Println(transaction)
+	fmt.Println(trade)
 
-	transactionAsBytes, err := json.Marshal(transaction)
-	if err != nil {
-		fmt.Println(err)
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(transaction.TransactionID, transactionAsBytes)
+	tradeAsBytes, err := json.Marshal(trade)
 	if err != nil {
 		fmt.Println(err)
 		return shim.Error(err.Error())
 	}
 
-	fmt.Println("Succesfully stored the transaction!")
+	timestamp, err := stub.GetTxTimestamp()
+	trade.Timestamp = time.Unix(timestamp.GetSeconds(), 0)
+
+	err = stub.PutState(trade.ID, tradeAsBytes)
+	if err != nil {
+		fmt.Println(err)
+		return shim.Error(err.Error())
+	}
+
+	fmt.Println("TRADE REGISTERED")
 
 	return shim.Success(nil)
 }
 
-// query callback representing the query of a chaincode
 func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	var A string // Entities
+	var ID string
 	var err error
 
 	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting name of the person to query")
+		return shim.Error("Query function requires one argument: ID")
 	}
 
-	A = args[0]
+	ID = args[0]
 
-	// Get the state from the ledger
-	Avalbytes, err := stub.GetState(A)
+	payload, err := stub.GetState(ID)
 	if err != nil {
-		jsonResp := "{\"Error\":\"Failed to get state for " + A + "\"}"
-		return shim.Error(jsonResp)
+		return shim.Error("Failed to get state for: " + ID)
 	}
 
-	if Avalbytes == nil {
-		jsonResp := "{\"Error\":\"Nil amount for " + A + "\"}"
-		return shim.Error(jsonResp)
+	if payload == nil {
+		return shim.Error("No results for: " + ID)
 	}
 
-	jsonResp := "{\"Name\":\"" + A + "\",\"Amount\":\"" + string(Avalbytes) + "\"}"
-	fmt.Printf("Query Response:%s\n", jsonResp)
-	return shim.Success(Avalbytes)
+	return shim.Success(payload)
 }
 
 func main() {
