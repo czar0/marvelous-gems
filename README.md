@@ -7,7 +7,7 @@ This CLI Demo offers a good example of multi-channel communication between peers
 # Marvelous Gems!
 
 ## Description of the network
-![network topology](gems/img/network.png "Network topology")
+![network topology](assets/img/network.png "Network topology")
 
 The configuration of the network is rather basic and it is the following:
 
@@ -26,26 +26,26 @@ The network is composed of a single organization: `org1.example.com`.
 
 **private**
 
-![private channel](gems/img/private.png "PRIVATE channel topology")
+![private channel](assets/img/private.png "PRIVATE channel topology")
 
 It is one-to-one typology channel between a peer and its endorser. It holds the most sensitive information related to a peer, like balance, ownership on gems, etc.
 
 **trading**
 
-![trading channel](gems/img/trading.png "TRADING channel topology")
+![trading channel](assets/img/trading.png "TRADING channel topology")
 
 It is created by 2 peers involved in a transaction of transferring ownerships on gems.
 
 **sharing**
 
-![sharing channel](gems/img/sharing.png "SHARING channel topology")
+![sharing channel](assets/img/sharing.png "SHARING channel topology")
 
 It represents the public channel which all the informative but not sensitive is shared in. It includes all the peers of the network.
 
 **Note:** Even if not specified, all the mentioned channels above always include endorsers, ca and orderers.
 To define even better the concept of data segregation, each typology of channel is provided with its own customized smart-contract which has also a different datamodel. Note that is not mandatory to use different chaincodes to obtain data segregation.
 
-![channels](gems/img/channels.png "Full overview of the network with channels")
+![channels](assets/img/channels.png "Full overview of the network with channels")
 
 ## Description of the scenario
 The presented demo shows a generic lifecycle of a gem: creation, trading and publishing updates.
